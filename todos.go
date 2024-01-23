@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -23,25 +24,25 @@ func getTodos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var todos []Todo
-	cursor, err := client.Database("todo").Collection("todos").Find(context.Background(), bson.M{})
+	collection := client.Database("todo").Collection("todos")
+	cur, err := collection.Find(context.Background(), bson.D{})
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer cursor.Close(context.Background())
-
-	for cursor.Next(context.Background()) {
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
 		var todo Todo
-		if err := cursor.Decode(&todo); err != nil {
+		err := cur.Decode(&todo)
+		if err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		todos = append(todos, todo)
 	}
-
-	if err := cursor.Err(); err != nil {
+	if err := cur.Err(); err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -50,12 +51,15 @@ func getTodos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(todos)
 }
 
-func getTodo(w http.ResponseWriter, r *http.Request) {
+func getTodo (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	params := mux.Vars(r)
 	var todo Todo
-	if err := client.Database("todo").Collection("todos").FindOne(context.Background(), bson.M{"_id": params["id"]}).Decode(&todo); err != nil {
+	collection := client.Database("todo").Collection("todos")
+	params := mux.Vars(r)
+	cur := collection.FindOne(context.Background(), bson.M{"_id": params["id"]})
+	err := cur.Decode(&todo)
+	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -64,17 +68,20 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(todo)
 }
 
-func createTodo(w http.ResponseWriter, r *http.Request) {
+func createTodo (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var todo Todo
-	if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
+	collection := client.Database("todo").Collection("todos")
+	err := json.NewDecoder(r.Body).Decode(&todo)
+	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	if _, err := client.Database("todo").Collection("todos").InsertOne(context.Background(), todo); err != nil {
+	todo.ID = uuid.New().String()
+	_, err = collection.InsertOne(context.Background(), todo)
+	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -83,18 +90,20 @@ func createTodo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(todo)
 }
 
-func updateTodo(w http.ResponseWriter, r *http.Request) {
+func updateTodo (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	params := mux.Vars(r)
 	var todo Todo
-	if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
+	collection := client.Database("todo").Collection("todos")
+	params := mux.Vars(r)
+	err := json.NewDecoder(r.Body).Decode(&todo)
+	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	if _, err := client.Database("todo").Collection("todos").UpdateOne(context.Background(), bson.M{"_id": params["id"]}, bson.M{"$set": todo}); err != nil {
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": params["id"]}, bson.M{"$set": todo})
+	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -103,15 +112,17 @@ func updateTodo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(todo)
 }
 
-func deleteTodo(w http.ResponseWriter, r *http.Request) {
+func deleteTodo (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	collection := client.Database("todo").Collection("todos")
 	params := mux.Vars(r)
-	if _, err := client.Database("todo").Collection("todos").DeleteOne(context.Background(), bson.M{"_id": params["id"]}); err != nil {
+	_, err := collection.DeleteOne(context.Background(), bson.M{"_id": params["id"]})
+	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }

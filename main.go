@@ -33,6 +33,6 @@ func main() {
 	router.HandleFunc("/api/todos/{id}", updateTodo).Methods("PUT")
 	router.HandleFunc("/api/todos/{id}", deleteTodo).Methods("DELETE")
 
-	log.Fatal(http.ListenAndServe(":8080", router))
 	log.Println("Server started on port 8080")
+	log.Fatal(http.ListenAndServe(":8080", router))
 }
